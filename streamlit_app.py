@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as path_effects
+import auth
 from PIL import Image
 
 from pipeline import build_master, write_excel
@@ -18,6 +19,78 @@ SEASON = str(today.year if today.month >= 7 else today.year - 1)
 page_icon = "images/matchday_icon.png"
 
 st.set_page_config(page_title="matchday", page_icon=page_icon, layout="wide")
+
+# authentication setup
+auth_container = st.container()
+with auth_container:
+    cols = st.columns([6, 2, 2])
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+
+    if not st.session_state.logged_in:
+        # Guest view: show login / signup
+        with cols[1]:
+            if st.button("Login"):
+                st.session_state.show_login = True
+                st.session_state.show_signup = False
+        with cols[2]:
+            if st.button("Sign Up"):
+                st.session_state.show_signup = True
+                st.session_state.show_login = False
+    else:
+        # Logged-in view: greeting + logout
+        with cols[1]:
+            st.markdown(f"**Hello, {st.session_state.username}**")
+        with cols[2]:
+            if st.button("Logout"):
+                st.session_state.clear()
+                st.success("Logged out successfully")
+                st.rerun()
+
+
+# LOGIN FORM
+if st.session_state.get("show_login", False):
+    with st.container():
+        st.subheader("Login")
+        username = st.text_input("Username", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pass")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Confirm Login"):
+                user_id = auth.auth_user(username, password)
+                if user_id:
+                    st.session_state.logged_in = True
+                    st.session_state.username = username
+                    st.session_state.show_login = False
+                    st.success(f"Welcome back, {username}!")
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
+        with col2:
+            if st.button("Cancel"):
+                st.session_state.show_login = False
+
+# SIGNUP FORM
+if st.session_state.get("show_signup", False):
+    with st.container():
+        st.subheader("Create Account")
+        new_user = st.text_input("New username", key="signup_user")
+        new_pass = st.text_input("New password", type="password", key="signup_pass")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Create Account"):
+                if auth.create_user(new_user, new_pass):
+                    st.success("Account created! You can now log in.")
+                    st.session_state.show_signup = False
+                else:
+                    st.error("Username already exists")
+        with col2:
+            if st.button("Cancel"):
+                st.session_state.show_signup = False
+
+
+auth.init_user_db()
 
 
 AX_BG = "#071421"
@@ -101,6 +174,33 @@ def build_radial_figure(labels, vals_0_1, colors, group_bounds):
     fig.patch.set_facecolor(AX_BG)
     fig.tight_layout(pad=1.0)
     return fig
+
+def auth_page():
+    st.title("Login")
+    tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
+
+    with tab_login:
+        username = st.text_input("Username", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pass")
+
+        if st.button("Login"):
+            user_id = auth.authenticate_user(username, password)
+            if user_id:
+                st.session_state.logged_in = True
+                st.session_state.user_id = user_id
+                st.session_state.username = username
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
+    with tab_signup:
+        new_user = st.text_input("New Username", key="signup_user")
+        new_pass = st.text_input("New Password", type="password", key="signup_pass")
+
+        if st.button("Create Account"):
+            if auth.create_user(new_user, new_pass):
+                st.success("Account created! You can now log in.")
+            else:
+                st.error("Username already exists.")
 
 st.image("images/matchday_logo.png", width=300)
 
